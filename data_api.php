@@ -4,9 +4,36 @@ header('Content-Type: application/json');
 
 // Ambil input dari user (API Key & Aksi)
 $api_key = mysqli_real_escape_string($conn, $_POST['api_key'] ?? '');
-$action  = $_POST['action'] ?? '';
+$action  = $_POST['action'] ?? ''; 
 
-// 1. Validasi Sesi/User berdasarkan API Key
+// --- TAMBAHAN FITUR DISINI ---
+
+// 1. Fitur Check Access (Untuk Login dari Script GameGuardian)
+if ($action == 'check_script_access') {
+    if (empty($api_key)) {
+        echo json_encode(["success" => false, "message" => "API Key kosong!"]);
+        exit;
+    }
+    
+    $checkQuery = mysqli_query($conn, "SELECT username, balance, is_vip FROM users WHERE api_key = '$api_key'");
+    $userData = mysqli_fetch_assoc($checkQuery);
+
+    if ($userData) {
+        echo json_encode([
+            "success" => true,
+            "username" => $userData['username'],
+            "balance" => (int)$userData['balance'],
+            "is_vip" => (bool)$userData['is_vip']
+        ]);
+    } else {
+        echo json_encode(["success" => false, "message" => "API Key tidak valid!"]);
+    }
+    exit;
+}
+
+// ---------------------------
+
+// 1. Validasi Sesi/User berdasarkan API Key (Untuk fitur beli/transaksi)
 if (empty($api_key)) {
     echo json_encode(["success" => false, "message" => "Sesi tidak valid! Silakan login ulang."]);
     exit;
